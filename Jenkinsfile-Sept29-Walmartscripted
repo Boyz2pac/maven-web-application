@@ -1,0 +1,58 @@
+node {
+    def mavenHome = '/opt/maven'
+
+    stage('1.CloneCode') {
+        git url: 'https://github.com/Boyz2pac/maven-web-application'
+    }
+
+    stage('2.mvnBuild') {
+        sh "${mavenHome}/bin/mvn clean package"
+    }
+
+    stage('3.sonar') {
+        sh "${mavenHome}/bin/mvn sonar:sonar"
+    }
+
+    stage('4.UploadArtifacts') {
+        sh "${mavenHome}/bin/mvn deploy"
+        // Uncomment and configure this stage with distributionManagement settings
+        // and Nexus credentials in settings.xml.
+        // sh "${mavenHome}/bin/mvn deploy"
+    }
+
+    // Uncomment and configure deployment, manual approval, and email notification stages as needed.
+    stage('5.Deploy2UAT') {
+        // Use deploy-to-container plugin via pipeline syntax
+        deploy adapters: [tomcat9(credentialsId: 'Tomcat-main', path: '', url: 'http://54.147.119.95:8000/')], contextPath: null, war: 'target/*.war'
+    }
+
+    stage('6.6ManualApproval') {
+        sh "echo 'Please review the application performance'"
+        timeout(time: 600, unit: 'MINUTES') {
+            input message: 'Application ready for deployment. Please review and approve.'
+        }
+    }
+
+    stage('7.Deploy2Prod') {
+        sh "echo 'Deploy application to the customers/production'"
+        // Deploy to the production environment (you can customize this as needed)
+        deploy adapters: [tomcat9(credentialsId: 'Tomcat-main', path: '', url: 'http://54.147.119.95:8000/')], contextPath: null, war: 'target/*.war'
+        
+    }
+
+    stage('8.APM'){
+        sh "echo 'monitoring and observation and alerting' "
+        sh "echo 'application performance Monitoring in progress' "
+    }
+    stage('9.emailNotification'){
+        sh "echo 'notify the team for unusual accurances' "
+        sh "echo 'notify the team if the applications are down' "
+        sh "echo 'notify the team if the latency is higher that expected' "
+        emailext body: '''Hi Team,
+
+The build and deployment status for walmart-pipeline follows.
+
+Regards,''', recipientProviders: [buildUser(), contributor(), developers(), requestor()], subject: 'build ad deployment status', to: 'devopsengineer.adebowale@gmail.com'
+
+    }
+}
